@@ -39,7 +39,7 @@ fn main() {
         .for_folder("assets")
         .unwrap();
     let ref font = assets.join("retro-gaming.ttf");
-    let factory = window.factory.clone();
+    let _factory = window.factory.clone();
     let mut glyphs = Glyphs::new(font, TextureContext {
         factory: window.factory.clone(),
         encoder: window.factory.create_command_buffer().into(),
