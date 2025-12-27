@@ -19,9 +19,7 @@ cargo build --release
 ## Keymap
 - **W/A/S/D** or **Up/Left/Down/Right** - Controll snake direction.
 - **R** - Restart the game.
-- **ESC** - Quit the game.
+- **M** - Mute Snake Jazz.
 
-## Known Flaws / ToDo List
-- **R** has no effect yet.
-- There should be an endscreen with restart / quit buttons.
-- The fruit and snake could possibly spawn at the same coordinate / fruits can spawn inside the tail of the snake.
+This project is supposed to help me learn how to run code in parallel instead of sequence. I am trying to learn these concepts
+using this snake game because one of the issues in the beginning was snake lag.
