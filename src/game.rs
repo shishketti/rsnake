@@ -39,6 +39,7 @@ struct GameState {
     paused: bool,
     pending_direction: Option<Direction>,
     should_stop_thread: bool,
+    apple_eaten_at: Option<Position>,
 }
 
 pub struct Game {
@@ -57,6 +58,7 @@ impl Game {
             paused: true,
             pending_direction: None,
             should_stop_thread: false,
+            apple_eaten_at: None,
         }));
 
         Self {
@@ -121,6 +123,7 @@ impl Game {
                         if did_eat_fruit {
                             state.snake.grow();
                             state.score = (state.snake.get_len() * 10) as u32;
+                            state.apple_eaten_at = Some(state.fruit.clone());
                             state.fruit = calc_random_pos(width, height);
                         }
                     } else {
@@ -157,6 +160,7 @@ impl Game {
             state.paused = false;
             state.pending_direction = None;
             state.should_stop_thread = false;
+            state.apple_eaten_at = None;
         }
 
         // Start the game again
@@ -223,5 +227,10 @@ impl Game {
     pub fn get_score(&self) -> u32 {
         let state = self.state.lock().unwrap();
         state.score
+    }
+
+    pub fn take_apple_eaten(&mut self) -> Option<Position> {
+        let mut state = self.state.lock().unwrap();
+        state.apple_eaten_at.take()
     }
 }
