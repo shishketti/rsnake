@@ -1,5 +1,8 @@
 use piston_window::*;
 use rand::Rng;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::colors;
 use crate::draw::*;
@@ -9,8 +12,8 @@ use crate::snake::Snake;
 const FPS: f64 = 10.0;
 // const RESTART_TIME: f64 = 1.0;
 
-fn fps_in_ms(fps: f64) -> f64 {
-    1.0 / fps
+fn fps_as_duration(fps: f64) -> Duration {
+    Duration::from_secs_f64(1.0 / fps)
 }
 
 fn calc_random_pos(width: u32, height: u32) -> Position {
@@ -22,36 +25,105 @@ fn calc_random_pos(width: u32, height: u32) -> Position {
     }
 }
 
-pub struct Game {
+struct GameState {
     snake: Snake,
     fruit: Position,
     size: (u32, u32),
-    waiting_time: f64,
     score: u32,
     over: bool,
     paused: bool,
+    pending_direction: Option<Direction>,
+}
+
+pub struct Game {
+    state: Arc<Mutex<GameState>>,
+    update_thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Game {
     pub fn new(width: u32, height: u32) -> Self {
-        // use fn defined at eof to calc random fruit / snake pos here
-        Self {
+        let state = Arc::new(Mutex::new(GameState {
             snake: Snake::new(calc_random_pos(width, height)),
             fruit: calc_random_pos(width, height),
             size: (width, height),
-            waiting_time: 0.0,
             score: 0,
             over: false,
             paused: true,
+            pending_direction: None,
+        }));
+
+        Self {
+            state,
+            update_thread: None,
         }
     }
 
     pub fn start(&mut self) {
-        self.paused = false;
+        {
+            let mut state = self.state.lock().unwrap();
+            state.paused = false;
+        }
+
+        // Start the game logic thread
+        let state_clone = Arc::clone(&self.state);
+        self.update_thread = Some(thread::spawn(move || {
+            let tick_duration = fps_as_duration(FPS);
+            let mut last_update = Instant::now();
+
+            loop {
+                let now = Instant::now();
+                let elapsed = now.duration_since(last_update);
+
+                if elapsed >= tick_duration {
+                    last_update = now;
+
+                    let mut state = state_clone.lock().unwrap();
+
+                    if state.over {
+                        break;
+                    }
+
+                    if state.paused {
+                        continue;
+                    }
+
+                    // Apply pending direction change
+                    if let Some(dir) = state.pending_direction.take() {
+                        state.snake.set_dir(dir);
+                    }
+
+                    // Check for wall collision before updating
+                    if state.snake.will_hit_wall(state.size.0, state.size.1) {
+                        state.over = true;
+                        continue;
+                    }
+
+                    if !state.snake.is_tail_overlapping() && !state.snake.will_tail_overlapp() {
+                        let snake_head_pos = state.snake.get_head_pos().clone();
+                        let did_eat_fruit = snake_head_pos == state.fruit;
+
+                        let (width, height) = state.size;
+                        state.snake.update(width, height);
+
+                        if did_eat_fruit {
+                            state.snake.grow();
+                            state.score = (state.snake.get_len() * 10) as u32;
+                            state.fruit = calc_random_pos(width, height);
+                        }
+                    } else {
+                        state.over = true;
+                    }
+                }
+
+                // Sleep briefly to avoid busy-waiting
+                thread::sleep(Duration::from_millis(1));
+            }
+        }));
     }
 
     pub fn pause(&mut self) {
-        self.paused = true;
+        let mut state = self.state.lock().unwrap();
+        state.paused = true;
     }
 
     // pub fn toggle_game_state(&mut self) {
@@ -63,68 +135,41 @@ impl Game {
     // }
 
     pub fn draw(&self, ctx: Context, g: &mut G2d) {
-        draw_block(&ctx, g, colors::FRUIT, &self.fruit);
-        self.snake.draw(&ctx, g);
-        // draw_text(&ctx, g, colors::SCORE, self.score.to_string());
+        let state = self.state.lock().unwrap();
+        draw_block(&ctx, g, colors::FRUIT, &state.fruit);
+        state.snake.draw(&ctx, g);
 
-        if self.over {
-            draw_overlay(&ctx, g, colors::OVERLAY, self.size)
+        if state.over {
+            draw_overlay(&ctx, g, colors::OVERLAY, state.size)
         }
     }
 
-    pub fn update(&mut self, delta_time: f64) {
-        self.waiting_time += delta_time;
-
-        // if self.over {
-        // if self.waiting_time > RESTART_TIME {
-        //     self.restart();
-        // }
-        // return;
-        // }
-
-        if self.waiting_time > fps_in_ms(FPS) && !self.over && !self.paused {
-            // self.check_colision() use snake.get_head_pos;
-            self.waiting_time = 0.0;
-
-            if !self.snake.is_tail_overlapping() && !self.snake.will_tail_overlapp() {
-                self.snake.update(self.size.0, self.size.1);
-
-                if *self.snake.get_head_pos() == self.fruit {
-                    self.snake.grow();
-                    self.snake.update(self.size.0, self.size.1);
-                    self.fruit = calc_random_pos(self.size.0, self.size.1);
-                    self.calc_score();
-                }
-            } else {
-                self.over = true;
-            }
-        }
+    pub fn update(&mut self, _delta_time: f64) {
+        // Game logic is now handled in a separate thread
+        // This method is kept for API compatibility but does nothing
     }
 
     pub fn key_down(&mut self, key: keyboard::Key) {
         use keyboard::Key;
 
-        // match key {
-        //     Key::R => self.over = false, // temp solution -> replace current game state trough new one
-        //     Key::Space => self.toggle_game_state(),
-        //     _ => self.start(),
-        // }
+        let mut state = self.state.lock().unwrap();
 
-        match key {
-            Key::A | Key::Left => self.snake.set_dir(Direction::Left),
-            Key::W | Key::Up => self.snake.set_dir(Direction::Up),
-            Key::D | Key::Right => self.snake.set_dir(Direction::Right),
-            Key::S | Key::Down => self.snake.set_dir(Direction::Down),
-            _ => {}
+        let dir = match key {
+            Key::A | Key::Left => Some(Direction::Left),
+            Key::W | Key::Up => Some(Direction::Up),
+            Key::D | Key::Right => Some(Direction::Right),
+            Key::S | Key::Down => Some(Direction::Down),
+            _ => None,
+        };
+
+        if let Some(d) = dir {
+            state.pending_direction = Some(d);
         }
     }
 
     pub fn get_score(&self) -> u32 {
-        self.score
-    }
-
-    fn calc_score(&mut self) {
-        self.score = (self.snake.get_len() * 10) as u32
+        let state = self.state.lock().unwrap();
+        state.score
     }
 
     // IMPORTANT!! -

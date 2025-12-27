@@ -40,10 +40,15 @@ fn main() {
         .unwrap();
     let ref font = assets.join("retro-gaming.ttf");
     let _factory = window.factory.clone();
-    let mut glyphs = Glyphs::new(font, TextureContext {
-        factory: window.factory.clone(),
-        encoder: window.factory.create_command_buffer().into(),
-    }, TextureSettings::new()).unwrap();
+    let mut glyphs = Glyphs::new(
+        font,
+        TextureContext {
+            factory: window.factory.clone(),
+            encoder: window.factory.create_command_buffer().into(),
+        },
+        TextureSettings::new(),
+    )
+    .unwrap();
 
     let mut main: Game = Game::new(WIDTH, HEIGHT);
     main.start();
@@ -53,18 +58,26 @@ fn main() {
             main.key_down(key);
         }
 
-        window.draw_2d(&event, |ctx, g, _| {
+        window.draw_2d(&event, |ctx, g, device| {
             clear(colors::BACKGROUND, g);
+
+            // Draw the score
+            let score_str = main.get_score().to_string();
             text::Text::new_color(colors::SCORE, 20)
                 .draw(
-                    main.get_score().to_string().as_ref(),
-                    &mut glyphs,
+                    score_str.as_ref(),
+                    &mut glyphs, // Pass glyphs here
                     &ctx.draw_state,
                     ctx.transform.trans(0.0, 20.0),
                     g,
                 )
                 .unwrap();
+
+            // Draw the game elements (snake, fruit, etc.)
             main.draw(ctx, g);
+
+            // Update glyphs texture context after drawing
+            glyphs.factory.encoder.flush(device); // Ensure glyphs texture is updated
         });
 
         event.update(|arg| {

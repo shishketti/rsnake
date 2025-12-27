@@ -1,5 +1,7 @@
-use piston_window::{Context, G2d};
 use std::collections::LinkedList;
+
+use piston_window::{types::Color, Context, G2d};
+use rand::Rng;
 
 use crate::colors;
 use crate::draw::*;
@@ -12,6 +14,7 @@ pub struct Snake {
     head: Position,
     tail: LinkedList<Position>,
     updated_tail_pos: bool,
+    color: Color,
 }
 
 impl Snake {
@@ -19,7 +22,7 @@ impl Snake {
         let (x, y) = (head.x, head.y);
         let mut tail = LinkedList::new();
 
-        for i in 1..(INITIAL_SNAKE_TAIL_LENGTH + 1) {
+        for i in 1..=INITIAL_SNAKE_TAIL_LENGTH {
             tail.push_back(Position { x, y: y - i as i32 });
         }
 
@@ -28,20 +31,12 @@ impl Snake {
             head: Position { x, y },
             tail,
             updated_tail_pos: false,
+            color: colors::SNAKE,
         }
     }
 
-    // pub fn dir(&self) -> Direction {
-    //     self.direction
-    // }
-
-    // pub fn r#move(&mut self) {}
-
-    // pub fn grow(&mut self, x: u32, y: u32) {
-    //     self.tail.push_back(Position { x, y })
-    // }
-    pub fn update(&mut self, width: u32, height: u32) {
-        if self.tail.len() > 0 {
+    pub fn update(&mut self, _width: u32, _height: u32) {
+        if !self.tail.is_empty() {
             self.tail.push_front(self.head.clone());
             self.tail.pop_back();
         }
@@ -53,25 +48,22 @@ impl Snake {
             Direction::Left => self.head.x -= 1,
         }
 
-        if self.head.x >= width as i32 {
-            self.head.x = 0;
-        } else if self.head.y >= height as i32 {
-            self.head.y = 0;
-        } else if self.head.y < 0 {
-            self.head.y = height as i32;
-        } else if self.head.x < 0 {
-            self.head.x = width as i32;
-        }
-
+        // Wall wrapping removed - collision is now checked separately
         self.updated_tail_pos = true;
+    }
+
+    /// Check if the snake will hit a wall on the next move
+    pub fn will_hit_wall(&self, width: u32, height: u32) -> bool {
+        let next = self.next_head_pos();
+        next.x < 0 || next.x >= width as i32 || next.y < 0 || next.y >= height as i32
     }
 
     pub fn draw(&self, ctx: &Context, g: &mut G2d) {
         for block in self.tail.iter() {
-            draw_block(&ctx, g, colors::SNAKE, block)
+            draw_block(ctx, g, self.color, block);
         }
 
-        draw_snake_head(&ctx, g, colors::SNAKE, &self.head, &self.direction);
+        draw_snake_head(ctx, g, self.color, &self.head, &self.direction);
     }
 
     pub fn set_dir(&mut self, dir: Direction) {
@@ -83,56 +75,26 @@ impl Snake {
         self.updated_tail_pos = false;
     }
 
+    pub fn grow(&mut self) {
+        let last = self.tail.back().cloned().unwrap_or(self.head.clone());
+        self.tail.push_back(last);
+
+        // 🎨 randomize color
+        let mut rng = rand::thread_rng();
+        self.color = [
+            rng.gen_range(0.2..1.0),
+            rng.gen_range(0.2..1.0),
+            rng.gen_range(0.2..1.0),
+            1.0,
+        ];
+    }
+
     pub fn get_head_pos(&self) -> &Position {
         &self.head
     }
 
-    pub fn get_len(&self) -> usize {
-        &self.tail.len() - INITIAL_SNAKE_TAIL_LENGTH
-    }
-
-    // pub fn is_alive(&self, size: (u32, u32)) -> bool {
-    // let next_pos = self.next_pos();
-    // let (width, height) = size;
-
-    // next_pos.x >= 0
-    //     && next_pos.y >= 0
-    //     && next_pos.x <= (width - 1) as i32
-    //     && next_pos.y <= (height - 1) as i32
-    //     &&
-
-    // !self.is_tail_overlapping()
-    // }
-
     pub fn is_tail_overlapping(&self) -> bool {
-        for pos in self.tail.iter() {
-            if *pos == self.head {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    pub fn will_tail_overlapp(&self) -> bool {
-        let next = self.next_head_pos();
-
-        for pos in self.tail.iter() {
-            if *pos == next {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    pub fn grow(&mut self) {
-        let last = match self.tail.back() {
-            Some(pos) => pos.clone(),
-            None => self.head.clone(),
-        };
-
-        self.tail.push_back(last);
+        self.tail.iter().any(|pos| *pos == self.head)
     }
 
     fn next_head_pos(&self) -> Position {
@@ -146,5 +108,14 @@ impl Snake {
         }
 
         pos
+    }
+    pub fn will_tail_overlapp(&self) -> bool {
+        let next = self.next_head_pos();
+
+        self.tail.iter().any(|pos| *pos == next)
+    }
+
+    pub fn get_len(&self) -> usize {
+        self.tail.len() - INITIAL_SNAKE_TAIL_LENGTH
     }
 }
