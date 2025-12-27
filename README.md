@@ -5,7 +5,7 @@ This game was built using the [piston_window](https://github.com/PistonDeveloper
 <img src="./assets/snake.gif" style="width: 100%;" />
 
 ## Download the game
-If youre using mac-osx or windows you can either download this game as executeable [here](https://github.com/schulke-214/rsnake/releases/tag/v1.0) - otherwise you can build it locally with `cargo`.
+I use arch linux and endeavourOS. I have no idea what im doing, good luck!
 
 ```bash
 # run the game
