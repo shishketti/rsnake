@@ -10,7 +10,12 @@ use crate::physics::{Direction, Position};
 use crate::snake::Snake;
 
 const FPS: f64 = 10.0;
-// const RESTART_TIME: f64 = 1.0;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GameStatus {
+    Playing,
+    GameOver,
+}
 
 fn fps_as_duration(fps: f64) -> Duration {
     Duration::from_secs_f64(1.0 / fps)
@@ -30,9 +35,10 @@ struct GameState {
     fruit: Position,
     size: (u32, u32),
     score: u32,
-    over: bool,
+    status: GameStatus,
     paused: bool,
     pending_direction: Option<Direction>,
+    should_stop_thread: bool,
 }
 
 pub struct Game {
@@ -47,9 +53,10 @@ impl Game {
             fruit: calc_random_pos(width, height),
             size: (width, height),
             score: 0,
-            over: false,
+            status: GameStatus::Playing,
             paused: true,
             pending_direction: None,
+            should_stop_thread: false,
         }));
 
         Self {
@@ -62,6 +69,7 @@ impl Game {
         {
             let mut state = self.state.lock().unwrap();
             state.paused = false;
+            state.should_stop_thread = false;
         }
 
         // Start the game logic thread
@@ -79,8 +87,13 @@ impl Game {
 
                     let mut state = state_clone.lock().unwrap();
 
-                    if state.over {
+                    if state.should_stop_thread {
                         break;
+                    }
+
+                    if state.status == GameStatus::GameOver {
+                        // Keep the thread alive but don't update game logic
+                        continue;
                     }
 
                     if state.paused {
@@ -94,7 +107,7 @@ impl Game {
 
                     // Check for wall collision before updating
                     if state.snake.will_hit_wall(state.size.0, state.size.1) {
-                        state.over = true;
+                        state.status = GameStatus::GameOver;
                         continue;
                     }
 
@@ -111,7 +124,7 @@ impl Game {
                             state.fruit = calc_random_pos(width, height);
                         }
                     } else {
-                        state.over = true;
+                        state.status = GameStatus::GameOver;
                     }
                 }
 
@@ -121,25 +134,51 @@ impl Game {
         }));
     }
 
+    pub fn restart(&mut self) {
+        // Stop the current thread
+        {
+            let mut state = self.state.lock().unwrap();
+            state.should_stop_thread = true;
+        }
+
+        // Wait for the thread to finish
+        if let Some(handle) = self.update_thread.take() {
+            let _ = handle.join();
+        }
+
+        // Reset the game state
+        {
+            let mut state = self.state.lock().unwrap();
+            let (width, height) = state.size;
+            state.snake = Snake::new(calc_random_pos(width, height));
+            state.fruit = calc_random_pos(width, height);
+            state.score = 0;
+            state.status = GameStatus::Playing;
+            state.paused = false;
+            state.pending_direction = None;
+            state.should_stop_thread = false;
+        }
+
+        // Start the game again
+        self.start();
+    }
+
     pub fn pause(&mut self) {
         let mut state = self.state.lock().unwrap();
         state.paused = true;
     }
 
-    // pub fn toggle_game_state(&mut self) {
-    //     if self.paused {
-    //         self.start();
-    //     } else {
-    //         self.pause();
-    //     }
-    // }
+    pub fn get_status(&self) -> GameStatus {
+        let state = self.state.lock().unwrap();
+        state.status
+    }
 
     pub fn draw(&self, ctx: Context, g: &mut G2d) {
         let state = self.state.lock().unwrap();
         draw_block(&ctx, g, colors::FRUIT, &state.fruit);
         state.snake.draw(&ctx, g);
 
-        if state.over {
+        if state.status == GameStatus::GameOver {
             draw_overlay(&ctx, g, colors::OVERLAY, state.size)
         }
     }
@@ -152,7 +191,21 @@ impl Game {
     pub fn key_down(&mut self, key: keyboard::Key) {
         use keyboard::Key;
 
+        // Check for restart key first (works even when game is over)
+        if key == Key::R {
+            let status = self.get_status();
+            if status == GameStatus::GameOver {
+                self.restart();
+                return;
+            }
+        }
+
         let mut state = self.state.lock().unwrap();
+
+        // Don't process movement keys if game is over
+        if state.status == GameStatus::GameOver {
+            return;
+        }
 
         let dir = match key {
             Key::A | Key::Left => Some(Direction::Left),
@@ -171,33 +224,4 @@ impl Game {
         let state = self.state.lock().unwrap();
         state.score
     }
-
-    // IMPORTANT!! -
-
-    // fn update_snake(&mut self, dir: Option<Direction>) {
-    //     if self.check_if_snake_alive(dir) {
-    //         self.snake.move_forward(dir);
-    //         self.check_eating();
-    //     } else {
-    //         self.game_over = true;
-    //     }
-    //     self.waiting_time = 0.0;
-    // }
 }
-
-// fn calc_not_overlapping_pos(pos_vec: Vec<Position>, width: u32, height: u32) {
-//     let mut fruit_pos: Position = calc_random_pos(width, height);
-
-//     loop {
-//         // if snake_pos.y != fruit_pos.y {
-//         //     break;
-//         // }
-
-//         for pos in pos_vec {
-//             if
-//         }
-
-//         snake_pos = calc_random_pos(width, height);
-//         fruit_pos = calc_random_pos(width, height);
-//     }
-// }

@@ -20,7 +20,7 @@ mod physics;
 mod snake;
 
 use draw::blocks_in_pixels;
-use game::Game;
+use game::{Game, GameStatus};
 use piston_window::*;
 
 const WINDOW_TITLE: &'static str = "rsnake";
@@ -75,6 +75,36 @@ fn main() {
 
             // Draw the game elements (snake, fruit, etc.)
             main.draw(ctx, g);
+
+            // Draw game over text if the game is over
+            if main.get_status() == GameStatus::GameOver {
+                let window_width = blocks_in_pixels(WIDTH) as f64;
+                let window_height = blocks_in_pixels(HEIGHT) as f64;
+
+                // Draw "GAME OVER" text
+                text::Text::new_color(colors::SCORE, 32)
+                    .draw(
+                        "GAME OVER",
+                        &mut glyphs,
+                        &ctx.draw_state,
+                        ctx.transform
+                            .trans(window_width / 2.0 - 90.0, window_height / 2.0 - 20.0),
+                        g,
+                    )
+                    .unwrap();
+
+                // Draw "Press R to Restart" text
+                text::Text::new_color(colors::SCORE, 16)
+                    .draw(
+                        "Press R to Restart",
+                        &mut glyphs,
+                        &ctx.draw_state,
+                        ctx.transform
+                            .trans(window_width / 2.0 - 80.0, window_height / 2.0 + 20.0),
+                        g,
+                    )
+                    .unwrap();
+            }
 
             // Update glyphs texture context after drawing
             glyphs.factory.encoder.flush(device); // Ensure glyphs texture is updated
