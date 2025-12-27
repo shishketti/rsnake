@@ -127,7 +127,7 @@ fn main() {
                     mute_text,
                     &mut glyphs,
                     &ctx.draw_state,
-                    ctx.transform.trans(window_width - 80.0, 20.0),
+                    ctx.transform.trans(window_width - 100.0, 20.0),
                     g,
                 )
                 .unwrap();
