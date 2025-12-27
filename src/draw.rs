@@ -1,9 +1,68 @@
 use crate::colors;
 use crate::physics::{Direction, Position};
+use noise::{NoiseFn, Perlin};
 use piston_window::types::Color;
 use piston_window::{rectangle, Context, G2d};
+use rand::Rng;
 
 pub const BLOCK_SIZE: f64 = 25.0;
+
+pub struct Background {
+    colors: Vec<Vec<Color>>,
+}
+
+impl Background {
+    pub fn new(width: u32, height: u32) -> Self {
+        let mut rng = rand::thread_rng();
+        let seed: u32 = rng.gen();
+        let perlin = Perlin::new(seed);
+
+        let scale = 0.15; // Controls how "zoomed in" the noise is
+
+        let mut colors = Vec::with_capacity(width as usize);
+        for x in 0..width {
+            let mut row = Vec::with_capacity(height as usize);
+            for y in 0..height {
+                let noise_val = perlin.get([x as f64 * scale, y as f64 * scale]);
+                // noise_val is roughly -1.0 to 1.0, normalize to 0.0 to 1.0
+                let t = (noise_val + 1.0) / 2.0;
+
+                // Interpolate between green and brown
+                let color = [
+                    colors::GRID_LIGHT[0]
+                        + (colors::GRID_DARK[0] - colors::GRID_LIGHT[0]) * t as f32,
+                    colors::GRID_LIGHT[1]
+                        + (colors::GRID_DARK[1] - colors::GRID_LIGHT[1]) * t as f32,
+                    colors::GRID_LIGHT[2]
+                        + (colors::GRID_DARK[2] - colors::GRID_LIGHT[2]) * t as f32,
+                    1.0,
+                ];
+                row.push(color);
+            }
+            colors.push(row);
+        }
+
+        Background { colors }
+    }
+
+    pub fn draw(&self, ctx: &Context, g: &mut G2d) {
+        for (x, row) in self.colors.iter().enumerate() {
+            for (y, color) in row.iter().enumerate() {
+                rectangle(
+                    *color,
+                    [
+                        x as f64 * BLOCK_SIZE,
+                        y as f64 * BLOCK_SIZE,
+                        BLOCK_SIZE,
+                        BLOCK_SIZE,
+                    ],
+                    ctx.transform,
+                    g,
+                );
+            }
+        }
+    }
+}
 
 pub fn draw_block(ctx: &Context, g: &mut G2d, c: Color, pos: &Position) {
     rectangle(

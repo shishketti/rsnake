@@ -19,7 +19,7 @@ mod game;
 mod physics;
 mod snake;
 
-use draw::blocks_in_pixels;
+use draw::{blocks_in_pixels, Background};
 use game::{Game, GameStatus};
 use piston_window::*;
 
@@ -51,6 +51,7 @@ fn main() {
     .unwrap();
 
     let mut main: Game = Game::new(WIDTH, HEIGHT);
+    let background = Background::new(WIDTH, HEIGHT);
     main.start();
 
     while let Some(event) = window.next() {
@@ -60,6 +61,7 @@ fn main() {
 
         window.draw_2d(&event, |ctx, g, device| {
             clear(colors::BACKGROUND, g);
+            background.draw(&ctx, g);
 
             // Draw the score
             let score_str = main.get_score().to_string();
