@@ -20,3 +20,6 @@ cargo build --release
 - **W/A/S/D** or **Up/Left/Down/Right** - Controll snake direction.
 - **R** - Restart the game.
 - **M** - Mute Snake Jazz.
+
+This project is supposed to help me learn how to run code in parallel instead of sequence. I am trying to learn these concepts
+using this snake game because one of the issues in the beginning was snake lag.
